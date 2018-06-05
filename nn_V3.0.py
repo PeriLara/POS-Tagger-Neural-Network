@@ -386,6 +386,9 @@ class NeuralNetwork():
                 self.param[i].W -= self.param[i-1].res_forward.T.dot(delta) * self.learning_rate
                 self.param[i].b -= (np.sum(delta, keepdims=True) * self.learning_rate)[0]
 
+                # normalization minmax
+                self.param[i].W = (self.param[i].W - self.param[i].W.min()) / (self.param[i].W.max() -self.param[i].W.min())
+
             elif i == 0: 
                 error = delta.dot(self.param[i+1].W.T)
                 slope = param.backward_activation(param.combi_lin)
@@ -393,6 +396,9 @@ class NeuralNetwork():
 
                 #update
                 self.param[i].W -= self.X.T.dot(delta) * self.learning_rate
+                
+                # normalization minmax
+                self.param[i].W = (self.param[i].W - self.param[i].W.min()) / (self.param[i].W.max() -self.param[i].W.min())
 
             else:
                 error = delta.dot(self.param[i+1].W.T)
@@ -403,6 +409,9 @@ class NeuralNetwork():
                 self.param[i].W -= self.param[i-1].res_forward.T.dot(delta) * self.learning_rate
                 self.param[i].b -= (np.sum(delta, keepdims=True) * self.learning_rate)[0]
 
+                # normalization minmax
+                self.param[i].W = (self.param[i].W - self.param[i].W.min()) / (self.param[i].W.max() -self.param[i].W.min())
+
     def cost(self, _y, y):
         if self.cost_function == HINGE:
             return np.max(0, 1 - _y * y)
@@ -412,7 +421,7 @@ class NeuralNetwork():
 
     # ---------------------- Training ---------------------
 
-    def train(self, epochs=5, mini_batch_size=None):
+    def train(self, epochs=10000, mini_batch_size=None):
         """ trains a neural network using the SGD or the GD algorthm """
         # if errors
         if mini_batch_size != None:
@@ -443,16 +452,15 @@ class NeuralNetwork():
                     self.back_propagation(self.y, p=True)
                 else:
                     self.back_propagation(self.y)
-                    #print(f"-----------------------------{e}--------------------")
-                    #print(self.param[0].W)
 
             
             ### Prints
-            #if (e%1000) == 0:
-            if self.test:
-                print(f"Epoch : {e}, Evaluation : {self.evalute()/ n}")
-            else:
-                print(f"Epoch : {e} complete")
+            if (e%1000) == 0:
+                if self.test:
+                    print(self.param[0].W)
+                    print(f"Epoch : {e}, Evaluation : {self.evalute()/ n}")
+                else:
+                    print(f"Epoch : {e} complete")
         
         print("Training time: {0:.2f} secs".format(time() - start_time))
 
@@ -462,8 +470,6 @@ class NeuralNetwork():
         """ Return the number of test inputs for which the neural network ouputs the correct results """
         #if self.nbr_classes > 2:    test_results = [(np.argmax(self.forward_propagation(x)), y) for x,y in zip(self.X_test, self.y_test)]
         test_results =[(np.argmax(self.forward_propagation(x)), np.argmax(y)) for x,y in zip(self.X_test, self.y_test)]
-        print(self.forward_propagation(self.X_test))
-
         return sum(int(a==b) for a,b in test_results)
 
 
