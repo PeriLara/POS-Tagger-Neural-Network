@@ -115,7 +115,7 @@ class Lookup_Layer(Layer):
         self.table = {word : np.random.random(size=(1, embedding.shape[0])) for word in self.vocabulary}
 
         self.activ = []
-        self.conc = 0.0
+        self.conc = None
 
     def __str__(self):
         return f"Lookup Layer : Weights = {self.W} \n activation = {self.res_forward}"
@@ -134,8 +134,7 @@ class Lookup_Layer(Layer):
         return self.table[word]
 
     def concatenate(self):
-        self.conc = np.concatenate(self.activ, axis=1)
-        return self.conc
+        return np.concatenate(self.activ, axis=1)
 
     def set_features(self, sentence, i_word):
 
@@ -217,17 +216,18 @@ class NeuralNetwork():
         """
         print("FORWARD")
 
-        self.param[0].set_features(sentence, x)
+        lutl = self.param[0]
+        lutl.set_features(sentence, x)
 
         res = []
-        for mot in self.param[0].activ:
+        for mot in lutl.activ:
             res.append(np.matmul(mot, self.embedding))
 
 
         res = np.concatenate(res, axis=1)
-
+        print(res.shape)
+        lutl.conc = res
         for p in self.param: 
-            
             combi_lin = np.add(np.matmul(res, p.W), p.b.T)
             p.combi_lin = combi_lin
 
@@ -254,17 +254,14 @@ class NeuralNetwork():
         backward = backward.dot(self.param[-1].W.T)
 
         for i in reversed(range(len(self.param) - 1)):
-            print(i)
             param = self.param[i]
             backward = backward.dot(param.backward_activation(param.combi_lin)) ## error
-
             if i == 0:
-                Wgrad = np.expand_dims(self.param[0].conc, axis=1).dot(backward) ## delta
+                Wgrad = self.param[0].conc.T.dot(backward) ## delta
             else:
-
                 Wgrad = self.param[i-1].res_forward.T.dot(backward) ## delta
 
-            print(Wgrad.shape, param.W.shape)
+
             assert backward.shape == param.b.T.shape
             assert Wgrad.shape == param.W.shape
             gradients.append((Wgrad, backward))
@@ -274,6 +271,8 @@ class NeuralNetwork():
             Wgrad, bgrad = gradients.pop()
             self.param[i].W -= self.learning_rate * Wgrad
             self.param[i].b -= self.learning_rate * bgrad.T
+        
+        self.param[0].activ = []
 
 
     # ---------------------- Training ---------------------
