@@ -153,10 +153,10 @@ def create_features(sentences, X_onehots, vocabulary, Y_onehots, window, voc2ind
 
 
 def create_onehots(vocabulary, classes):
-    """ Etape 1 :
+    Etape 1 :
             Crée des vecteurs creux pour les classes et le vocabulaire donnés
             retourne les vecteurs creux
-    """
+
     nbr_words = len(vocabulary)
     X_onehots = np.zeros(shape=(nbr_words, nbr_words))
 
