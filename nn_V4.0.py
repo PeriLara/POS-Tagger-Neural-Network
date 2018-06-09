@@ -115,6 +115,7 @@ class Lookup_Layer(Layer):
         self.table = {word : np.random.random(size=(1, embedding.shape[0])) for word in self.vocabulary}
 
         self.activ = []
+        self.conc = 0.0
 
     def __str__(self):
         return f"Lookup Layer : Weights = {self.W} \n activation = {self.res_forward}"
@@ -133,7 +134,8 @@ class Lookup_Layer(Layer):
         return self.table[word]
 
     def concatenate(self):
-        return np.concatenate(self.activ, axis=1)
+        self.conc = np.concatenate(self.activ, axis=1)
+        return self.conc
 
     def set_features(self, sentence, i_word):
 
@@ -221,6 +223,7 @@ class NeuralNetwork():
         for mot in self.param[0].activ:
             res.append(np.matmul(mot, self.embedding))
 
+
         res = np.concatenate(res, axis=1)
 
         for p in self.param: 
@@ -253,16 +256,14 @@ class NeuralNetwork():
         for i in reversed(range(len(self.param) - 1)):
             print(i)
             param = self.param[i]
-            backward = backward.dot(param.backward_activation(param.combi_lin))
+            backward = backward.dot(param.backward_activation(param.combi_lin)) ## error
 
-            #if i == 0:
-            #    print("if")
-            #    Wgrad = np.expand_dims(self.param[i-1].res_forward.T, axis=1).dot(backward)
-            #else:
-            #    print("else")
-            #    assert False
-            print(i-1)
-            Wgrad = self.param[i].res_forward.T.dot(backward)
+            if i == 0:
+                Wgrad = np.expand_dims(self.param[0].conc, axis=1).dot(backward) ## delta
+            else:
+
+                Wgrad = self.param[i-1].res_forward.T.dot(backward) ## delta
+
             print(Wgrad.shape, param.W.shape)
             assert backward.shape == param.b.T.shape
             assert Wgrad.shape == param.W.shape
