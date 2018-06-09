@@ -220,15 +220,17 @@ class NeuralNetwork():
         res = []
         for mot in self.param[0].activ:
             res.append(np.matmul(mot, self.embedding))
-        print(res[0].shape)
+
         res = np.concatenate(res, axis=1)
-        print(res.shape)
+
         for p in self.param: 
+            
             combi_lin = np.add(np.matmul(res, p.W), p.b.T)
             p.combi_lin = combi_lin
 
             res = p.forward_activation(combi_lin)
             p.res_forward = res
+            print(p.W.shape, p.combi_lin.shape, p.res_forward.shape)
 
         if pred:
             self.param[0].activ = []
@@ -249,15 +251,19 @@ class NeuralNetwork():
         backward = backward.dot(self.param[-1].W.T)
 
         for i in reversed(range(len(self.param) - 1)):
+            print(i)
             param = self.param[i]
             backward = backward.dot(param.backward_activation(param.combi_lin))
 
-            if i == 0:
-                Wgrad = np.expand_dims(self.param[0].activ[2][0], axis=1).dot(backward)
-            else:
-                assert False
-                Wgrad = self.param[i-1].res_forward.T.dot(backward)
-
+            #if i == 0:
+            #    print("if")
+            #    Wgrad = np.expand_dims(self.param[i-1].res_forward.T, axis=1).dot(backward)
+            #else:
+            #    print("else")
+            #    assert False
+            print(i-1)
+            Wgrad = self.param[i].res_forward.T.dot(backward)
+            print(Wgrad.shape, param.W.shape)
             assert backward.shape == param.b.T.shape
             assert Wgrad.shape == param.W.shape
             gradients.append((Wgrad, backward))
