@@ -77,8 +77,9 @@ class Softmax_Layer(Layer):
         return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
     def forward_activation(self, x):
-        scoreMatExp = np.exp(np.asarray(x))
-        return scoreMatExp / scoreMatExp.sum(0)
+        new_x = x - np.max(x)
+        exp = np.exp(new_x)
+        return exp / exp.sum()
 
 class RelU_Layer(Layer):
     """ Layer with RelU activation function """
@@ -204,7 +205,7 @@ class NeuralNetwork():
         Initializes the parameters randomly for weight 
             & to zeros for bias
         """ 
-        bfr_W = np.random.random(size=(40, layers[0]))
+        bfr_W = np.random.random(size=(15, layers[0]))
         bfr_W -= 0.5
         bfr_W /= 100
         bfr_b = np.random.random(size=(layers[0],1)) 
@@ -273,6 +274,7 @@ class NeuralNetwork():
 
 
     def back_propagation(self, y):
+        self.param[0].W
         backward = self.param[-1].forward_activation(self.param[-1].combi_lin) - y # c'est le gradient par rapport à cross_entropy(softmax)
         Wgrad = self.param[-2].res_forward.T.dot(backward) #slope
 
@@ -291,7 +293,6 @@ class NeuralNetwork():
             else:
                 Wgrad = self.param[i-1].res_forward.T.dot(backward) ## delta (1,40)
 
-
             assert backward.shape == param.b.T.shape
             assert Wgrad.shape == param.W.shape
             gradients.append((Wgrad, backward)) 
@@ -304,9 +305,8 @@ class NeuralNetwork():
 
             self.param[i].W = (self.param[i].W - self.param[i].W.min()) / (self.param[i].W.max() -self.param[i].W.min())
 
-
         #### EMBEDDING PART
-        error = np.split(backward, 5.0, axis=1) # 5 * (1,19)
+        """error = np.split(backward, 5.0, axis=1) # 5 * (1,19)
         for i in range(len(error)):
             e = error[i].dot(self.embedding.backward_activation(self.embedding.combi_lin[i])) #(1,19)
             Wgrad = self.embedding.res_forward[i].T.dot(e) #( 19,19)
@@ -316,10 +316,11 @@ class NeuralNetwork():
             gradients.append((Wgrad, e, essai))
 
         for e in range(len(error)-1, -1, -1):
+
             Wgrad, bgrad, igrad = gradients.pop(e)
             self.embedding.W -= self.learning_rate * Wgrad.T
             self.embedding.b -= self.learning_rate * bgrad.T
-            self.param[0].table[self.embedding.inputs_names[e]] -=  self.learning_rate * igrad
+            self.param[0].table[self.embedding.inputs_names[e]] -=  self.learning_rate * igrad"""
 
 
         
@@ -332,7 +333,7 @@ class NeuralNetwork():
 
     # ---------------------- Training ---------------------
 
-    def train(self, sentences, test_sentences=None, epochs=20):
+    def train(self, sentences, test_sentences=None, epochs=2):
         start_time = time()
         for e in range(1, epochs+1, 1):
             for sentence in sentences:
@@ -341,7 +342,7 @@ class NeuralNetwork():
                     self.back_propagation(self.classe2one_hot[sentence[1][i]])
 
             ### Prints
-            if e % 10 == 0:
+            if e % 1 == 0:
                 print("Epoch : {}, Evaluation : {}".format(e, self.evaluate(test_sentences)))
 
         print("Training time: {0:.2f} secs".format(time() - start_time))
@@ -360,6 +361,8 @@ class NeuralNetwork():
             for i in range(len(sentence)):
                 predictions.append(self.predict(sentence, i))
                 Y.append(self.classe2one_hot[sentence[1][i]])
+        for p,y in zip(predictions,Y):
+            print(p,y)
         return sum(int(a==np.argmax(b)) for a, b in zip(predictions, Y)) * 100 / ex_nb
 
 
@@ -399,6 +402,6 @@ if __name__ == "__main__":
     # Creating test data 
     test_sentences, test_vocabulary = rc.read_conllu(testfile, window, train_vocabulary)
 
-    NN = NeuralNetwork([19,60,len(classes)],[TANH, SOFTMAX], train_vocabulary, window, classes)  
+    NN = NeuralNetwork([12,20,len(classes)],[TANH, SOFTMAX], train_vocabulary, window, classes)  
     NN.train(train_sentences, test_sentences=test_sentences)
     #print(NN.evalute())
