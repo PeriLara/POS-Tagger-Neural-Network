@@ -26,6 +26,7 @@ import random
 import argparse
 from time import time
 from collections import defaultdict
+from abc import ABC
 
 # ---------------------- Constants ---------------------
 UNKNOWN= "UNKNOWN"
@@ -49,16 +50,23 @@ LIN = "linear"
 
     Les classes d'embedding et Lookup sont différentes des autres car elles s'occupent en plus des entrées du réseau """
 
-class Layer(): #abstract
+class Layer(ABC): #abstract
     def __init__(self, W, b):
         self.W = W
         self.b = b
-    
+
+    def __repr__(self):
+        return f"Layer : Weights = {self.W}"
+
     def __str__(self):
         return f"Layer : Weights = {self.W}"
     
-    def forward_activation(self, x):
+    def forward_function(self, x):
         return
+
+    def backward_function(self, x):
+        return
+
 
 class Linear_Layer(Layer):
     """ Layer with linear activation function """
@@ -67,14 +75,21 @@ class Linear_Layer(Layer):
         self.res_forward = None #result of the forward activation
         self.combi_lin = None
 
+    def __repr__(self):
+        return f"Linear Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+
     def __str__(self):
         return f"Linear Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
-    def forward_activation(self, x):
-        return x
+    def forward_function(self, x):
+        self.combi_lin = np.add(np.matmul(x, self.W), self.b.T)
+        self.res_forward = self.combi_lin
+        return self.res_forward
     
-    def backward_activation(self, x): # returns the derivative of linear function
-        return 1.0
+    def backward_function(self, backward): # returns the derivative of linear function
+        Wgrad = self.res_forward.T.dot(backward)
+        return backward, Wgrad
+
 
 class Softmax_Layer(Layer):
     """ Layer with sigmoid activation function 
@@ -84,13 +99,27 @@ class Softmax_Layer(Layer):
         self.res_forward = None #result of the forward activation
         self.combi_lin = None
 
+    def __repr__(self):
+        return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+        
+
     def __str__(self):
         return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
-    def forward_activation(self, x):
-        new_x = x - np.max(x)
+    def forward_function(self, x):
+        self.combi_lin = np.add(np.matmul(x,self.W), self.b.T)
+        new_x = self.combi_lin - np.max(self.combi_lin)
         exp = np.exp(new_x)
-        return exp / exp.sum()
+        self.res_forward = exp / exp.sum()
+        return self.res_forward
+
+    def backward_function(self, y, hiddenL): #TODO : Erreur
+        new_x = self.combi_lin - np.max(self.combi_lin)
+        exp = np.exp(new_x)
+        backward = (exp/ exp.sum()) - y # c'est le gradient par rapport à cross_entropy(softmax)
+        Wgrad = hiddenL.res_forward.T.dot(backward) #slope
+        return backward, Wgrad
+
 
 class RelU_Layer(Layer):
     """ Layer with RelU activation function """
@@ -99,15 +128,24 @@ class RelU_Layer(Layer):
         self.res_forward = None #result of the forward activation
         self.combi_lin = None
 
+    def __repr__(self):
+        return f"RelU Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+    
+
     def __str__(self):
         return f"RelU Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
-    def forward_activation(self, x):
-        return x * (x > 0.0)
+    def forward_function(self, x):
+        self.combi_lin = np.add(np.matmul(x,self.W), self.b.T)
+        self.res_forward = self.combi_lin * (self.combi_lin > 0.0)
+        return self.res_forward
     
-    def backward_activation(self, x): #returns the jacobian of the function
+    def backward_function(self, backward): #returns the jacobian of the function
         #jac = np.diag((1.0 * (x > 0.0))[0])
-        return 1.0 * (x > 0.0)
+        backward = backward.dot(1.0 * (self.combi_lin > 0.0))
+        Wgrad = self.res_forward.T.dot(backward)
+        return backward, Wgrad
+
 
 class Embedding_Layer(Layer):
     """ Layer with RelU activation function 
@@ -131,11 +169,26 @@ class Embedding_Layer(Layer):
     def __str__(self):
         return f"Embedding Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
-    def forward_activation(self, x):
-        return x 
-    
-    def backward_activation(self, x): # returns the derivative of linear function
-        return 1.0
+    def forward_function(self, sentence, x, table, voc):
+        self.set_features(sentence, x, table, voc)
+        for mot in self.inputs_vectors:
+            combi_lin = np.add(np.matmul(mot, self.W), self.b.T)
+            self.combi_lin.append(combi_lin)
+            self.res_forward.append(combi_lin)
+        conc = np.concatenate(self.res_forward, axis=1)
+        return conc
+
+    def backward_function(self, backward): # returns the derivative of linear function
+        error = np.split(backward, self.window*2+1, axis=1) 
+        gradients = []
+        for i in range(len(error)):
+            backward = error[i]
+            Wgrad = self.res_forward[i].T.dot(backward) 
+            Wgrad = Wgrad.dot(self.W.T) 
+            essai = error[i].dot(self.W.T)
+            gradients.append((backward, Wgrad, essai))
+        return gradients #len = window*2+1
+
 
     def set_features(self, sentence, i_word, table, vocabulary):
         for w in range(-self.window, self.window+1):
@@ -155,6 +208,13 @@ class Embedding_Layer(Layer):
                     self.inputs_vectors.append(table[UNKNOWN])
                     self.inputs_names.append(UNKNOWN)
 
+    def update(self):
+        self.inputs_vectors = []
+        self.inputs_names = []
+        self.res_forward = []            
+        self.combi_lin = []
+
+
 class Lookup_Layer(Layer):
     """
     En plus des attributs communs aux Layers
@@ -173,7 +233,7 @@ class Lookup_Layer(Layer):
         self.vocabulary = vocabulary
         self.voc2index = {x:i for i,x in enumerate(self.vocabulary)}
 
-        self.table = defaultdict()
+        self.table = defaultdict(lambda:np.random.rand((1,embedding.W.shape[0])))
         # On remplie la table
         self.table = {word : np.random.random(size=(1, embedding.W.shape[0])) for word in self.vocabulary}
 
@@ -182,16 +242,21 @@ class Lookup_Layer(Layer):
     def __str__(self):
         return f"Lookup Layer : Weights = {self.W} \n activation = {self.res_forward}"
     
-    def forward_activation(self, x):
-        return x
+    def forward_function(self, x): #Linear
+        self.combi_lin = np.add(np.matmul(x, self.W), self.b.T)
+        self.res_forward = self.combi_lin
+        return self.res_forward
     
-    def backward_activation(self, x): # returns the derivative of a linear function
-        return 1.0 
+    def backward_function(self, backward): # Linear
+        Wgrad = self.conc.T.dot(backward) 
+        return backward, Wgrad
 
     def get_vector(self, word): # returns from the LookupTable the vector of the word
         if word not in self.table:  word=UNKNOWN
         return self.table[word]
-
+    
+    def update(self):
+        self.conc = []
 
 # ---------------------- Neural Network ---------------------
 
@@ -265,91 +330,67 @@ class NeuralNetwork():
         pred = True --> test set
         """
         # Forward propagation for the Embedding Layer which is not fully connected
-        self.embedding.set_features(sentence, x, self.param[0].table, self.param[0].vocabulary)
-        for mot in self.embedding.inputs_vectors:
-            combi_lin = np.add(np.matmul(mot, self.embedding.W), self.embedding.b.T)
-            self.embedding.combi_lin.append(combi_lin)
-            self.embedding.res_forward.append(self.embedding.forward_activation(combi_lin))
-        res = np.concatenate(self.embedding.res_forward, axis=1)
+        res = self.embedding.forward_function(sentence, x, self.param[0].table, self.param[0].vocabulary)
         self.param[0].conc = res
         
         # Forward propagation for other layers which are fully connected
         for p in self.param: 
-            combi_lin = np.add(np.matmul(res, p.W), p.b.T)
-            p.combi_lin = combi_lin
-            res = p.forward_activation(combi_lin)
-            p.res_forward = res
+            res = p.forward_function(res)
 
         if pred:
-            self.embedding.inputs_vectors = []
-            self.embedding.inputs_names = []
-            self.embedding.res_forward = []
-            self.embedding.combi_lin = []
-            self.param[0].conc = []
+            self.embedding.update()
+            self.param[0].update()
+
 
         return self.param[-1].res_forward # output of the forward prop
 
     def back_propagation(self, y):
         # Backprop for the output layer, different from the others
-        backward = self.param[-1].forward_activation(self.param[-1].combi_lin) - y # c'est le gradient par rapport à cross_entropy(softmax)
-        Wgrad = self.param[-2].res_forward.T.dot(backward) #slope
-
+        backward, Wgrad = self.param[-1].backward_function(y, self.param[-2])
         assert Wgrad.shape == self.param[-1].W.shape
         assert backward.shape == self.param[-1].b.T.shape
-
         gradients = [(Wgrad, backward)]
         backward = backward.dot(self.param[-1].W.T) #(1,60)
 
         # Backprop for hiddenlayers + lookuplayer
         for i in reversed(range(len(self.param) - 1)):
             param = self.param[i]
-            backward = backward.dot(param.backward_activation(param.combi_lin))
-
-            if i == 0:
-                Wgrad = self.param[0].conc.T.dot(backward) 
-            else:
-                Wgrad = self.param[i-1].res_forward.T.dot(backward)
-
+            backward, Wgrad = param.backward_function(backward) # avant i-1
             assert backward.shape == param.b.T.shape
             assert Wgrad.shape == param.W.shape
             gradients.append((Wgrad, backward)) 
             backward = backward.dot(param.W.T) 
 
+        # EMBEDDING PART
+        emb_gradients = self.embedding.backward_function(backward)
+
+        self.update_params(gradients, emb_gradients)
+
+        self.embedding.update()
+        self.param[0].update()
+
+    def update_params(self, layers_gradients, emb_gradients):
         # Update from output to lookup layer
         for i in range(len(self.param)):
-            Wgrad, bgrad = gradients.pop()
+            Wgrad, bgrad = layers_gradients.pop()
             self.param[i].W -= self.learning_rate * Wgrad
             self.param[i].b -= self.learning_rate * bgrad.T
 
             self.param[i].W = (self.param[i].W - self.param[i].W.min()) / (self.param[i].W.max() -self.param[i].W.min())
             self.param[i].b = (self.param[i].b - self.param[i].b.min()) / (self.param[i].b.max() -self.param[i].b.min())
-
-        #### EMBEDDING PART
-        error = np.split(backward, window*2+1, axis=1) 
-        for i in range(len(error)):
-            e = error[i].dot(self.embedding.backward_activation(self.embedding.combi_lin[i])) #(1,19)
-            Wgrad = self.embedding.res_forward[i].T.dot(e) 
-            Wgrad = Wgrad.dot(self.embedding.W.T) 
-            essai = error[i].dot(self.embedding.W.T)
+        
+        #Update Embeddings
+        for e in range(len(emb_gradients)-1, -1, -1):
+            bgrad, Wgrad, igrad = emb_gradients.pop(e)
             
-            gradients.append((Wgrad, e, essai))
-
-        for e in range(len(error)-1, -1, -1):
-
-            Wgrad, bgrad, igrad = gradients.pop(e)
             self.embedding.W -= self.learning_rate * Wgrad.T
-            self.embedding.W = (self.embedding.W - self.embedding.W.min()) / (self.embedding.W.max() -self.embedding.W.min())
             self.embedding.b -= self.learning_rate * bgrad.T
-            self.embedding.b = (self.embedding.b - self.embedding.b.min()) / (self.embedding.b.max() -self.embedding.b.min())
             self.param[0].table[self.embedding.inputs_names[e]] -=  self.learning_rate * igrad
 
+            self.embedding.W = (self.embedding.W - self.embedding.W.min()) / (self.embedding.W.max() -self.embedding.W.min())
+            self.embedding.b = (self.embedding.b - self.embedding.b.min()) / (self.embedding.b.max() -self.embedding.b.min())
+            
 
-        
-        self.embedding.inputs_vectors = []
-        self.embedding.inputs_names = []
-        self.embedding.res_forward = []
-        self.embedding.combi_lin = []
-        self.param[0].conc = []
 
     # ---------------------- Training ---------------------
 
@@ -360,7 +401,6 @@ class NeuralNetwork():
                 for i in range(len(sentence)):
                     self.forward_propagation(sentence, i)
                     self.back_propagation(self.classe2one_hot[sentence[1][i]])
-
             ### Prints
             if e % 1 == 0:
                 print("Epoch : {}, Evaluation : {}".format(e, self.evaluate(test_sentences)))
@@ -404,11 +444,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trainfile = args.train
-    #devfile = args.dev
+    # devfile = args.dev
     testfile = args.test
     window = args.window
     
-    #Creating training data
+    # Creating training data
     train_sentences, train_vocabulary = rc.read_conllu(trainfile, window)
     classes = rc.get_classes(train_sentences)
 
