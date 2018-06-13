@@ -398,7 +398,7 @@ class NeuralNetwork():
         for e in range(1, epochs+1, 1):
             random.shuffle(sentences) # shuffle indexes of the training data
 
-            if mini_batch: #SGD
+            """if mini_batch: #SGD
                 n = len(sentences)
                 assert n > mini_batch
                 mini_sentences = np.array([ sentences[k : k+mini_batch] 
@@ -407,12 +407,11 @@ class NeuralNetwork():
                     print(sentence)
                     for i in range(len(sentence)):
                         self.forward_propagation(sentence, i)
-                        self.back_propagation(self.classe2one_hot[sentence[1][i]])
-            else:
-                for sentence in sentences:
-                    for i in range(len(sentence)):
-                        self.forward_propagation(sentence, i)
-                        self.back_propagation(self.classe2one_hot[sentence[1][i]])
+                        self.back_propagation(self.classe2one_hot[sentence[1][i]])"""
+            for sentence in sentences:
+                for i in range(len(sentence)):
+                    self.forward_propagation(sentence, i)
+                    self.back_propagation(self.classe2one_hot[sentence[1][i]])
             ### Prints
             if e % 1 == 0:
                 print("Epoch : {}, Evaluation : {}".format(e, self.evaluate(test_sentences)))
