@@ -101,7 +101,6 @@ class Softmax_Layer(Layer):
 
     def __repr__(self):
         return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
-        
 
     def __str__(self):
         return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
@@ -113,7 +112,7 @@ class Softmax_Layer(Layer):
         self.res_forward = exp / exp.sum()
         return self.res_forward
 
-    def backward_function(self, y, hiddenL): #TODO : Erreur
+    def backward_function(self, y, hiddenL): 
         new_x = self.combi_lin - np.max(self.combi_lin)
         exp = np.exp(new_x)
         backward = (exp/ exp.sum()) - y # c'est le gradient par rapport à cross_entropy(softmax)
@@ -394,13 +393,26 @@ class NeuralNetwork():
 
     # ---------------------- Training ---------------------
 
-    def train(self, sentences, test_sentences=None, epochs=20):
+    def train(self, sentences, test_sentences=None, epochs=20, mini_batch=None):
         start_time = time()
         for e in range(1, epochs+1, 1):
-            for sentence in sentences:
-                for i in range(len(sentence)):
-                    self.forward_propagation(sentence, i)
-                    self.back_propagation(self.classe2one_hot[sentence[1][i]])
+            random.shuffle(sentences) # shuffle indexes of the training data
+
+            if mini_batch: #SGD
+                n = len(sentences)
+                assert n > mini_batch
+                mini_sentences = np.array([ sentences[k : k+mini_batch] 
+                                                for k in range(0, n, mini_batch)])
+                for sentence in mini_sentences:
+                    print(sentence)
+                    for i in range(len(sentence)):
+                        self.forward_propagation(sentence, i)
+                        self.back_propagation(self.classe2one_hot[sentence[1][i]])
+            else:
+                for sentence in sentences:
+                    for i in range(len(sentence)):
+                        self.forward_propagation(sentence, i)
+                        self.back_propagation(self.classe2one_hot[sentence[1][i]])
             ### Prints
             if e % 1 == 0:
                 print("Epoch : {}, Evaluation : {}".format(e, self.evaluate(test_sentences)))
@@ -441,6 +453,7 @@ if __name__ == "__main__":
     parser.add_argument("--learningrate","-lr", type=float, default=0.01, help="Learning rate")
     parser.add_argument("--epochs","-i", type=int, default=10000, help="Number of epochs")
     parser.add_argument("--lookup_size","-lus", type=int, default=16, help="Dimension of the weight for the lookup table layer")
+    parser.add_argument("--mini_batch_size","-mbs", type=int, default=None, help="Dimension of the weight for the lookup table layer")
     args = parser.parse_args()
 
     trainfile = args.train
@@ -456,5 +469,5 @@ if __name__ == "__main__":
     test_sentences, test_vocabulary = rc.read_conllu(testfile, window, train_vocabulary)
 
     NN = NeuralNetwork([12,20,len(classes)],[RELU, SOFTMAX], train_vocabulary, window, classes)  
-    NN.train(train_sentences, test_sentences=test_sentences)
+    NN.train(train_sentences, test_sentences=test_sentences, mini_batch=args.mini_batch_size)
     #print(NN.evalute())
