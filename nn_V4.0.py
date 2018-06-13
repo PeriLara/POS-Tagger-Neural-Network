@@ -120,6 +120,30 @@ class Softmax_Layer(Layer):
         return backward, Wgrad
 
 
+class Sigmoid_Layer(Layer):
+    """ Layer with RelU activation function """
+    def __init__(self, W, b):
+        Layer.__init__(self, W, b)
+        self.res_forward = None #result of the forward activation
+        self.combi_lin = None
+
+    def __repr__(self):
+        return f"Sigmoid Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+    
+    def __str__(self):
+        return f"Sigmoid Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+    
+    def forward_function(self, x):
+        self.combi_lin = np.add(np.matmul(x,self.W), self.b.T)
+        self.res_forward = 1.0 / 1.0 + np.exp(-self.combi_lin)
+        return self.res_forward
+    
+    def backward_function(self, backward): 
+        backward = backward.dot(self.combi_lin * (1.0 - self.combi_lin))
+        Wgrad = self.res_forward.T.dot(backward)
+        return backward, Wgrad
+
+
 class RelU_Layer(Layer):
     """ Layer with RelU activation function """
     def __init__(self, W, b):
@@ -142,6 +166,30 @@ class RelU_Layer(Layer):
     def backward_function(self, backward): #returns the jacobian of the function
         #jac = np.diag((1.0 * (x > 0.0))[0])
         backward = backward.dot(1.0 * (self.combi_lin > 0.0))
+        Wgrad = self.res_forward.T.dot(backward)
+        return backward, Wgrad
+
+
+class Tanh_Layer(Layer):
+    """ Layer with TanH activation function """
+    def __init__(self, W, b):
+        Layer.__init__(self, W, b)
+        self.res_forward = None #result of the forward activation
+        self.combi_lin = None
+
+    def __repr__(self):
+        return f"Tanh Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+    
+    def __str__(self):
+        return f"Tanh Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+    
+    def forward_function(self, x):
+        self.combi_lin = np.add(np.matmul(x,self.W), self.b.T)
+        self.res_forward = (2.0 / 1.0 + np.exp(-2.0 * self.combi_lin) ) * -1.0
+        return self.res_forward
+    
+    def backward_function(self, backward): 
+        backward = backward.dot(1.0 - (self.combi_lin ** 2.0))
         Wgrad = self.res_forward.T.dot(backward)
         return backward, Wgrad
 
@@ -274,6 +322,7 @@ class NeuralNetwork():
         
         self.layers = layers
         self.learning_rate = learning_rate
+        self.T = 1 # optimization with learning rate
 
         self.vocabulary = vocabulary
         self.window = window
@@ -282,6 +331,7 @@ class NeuralNetwork():
         self.param = []
         self.init_param_random_xavier(activ, layers)
         self.nb_param = len(self.param)
+
 
         self.classe2one_hot = defaultdict()
         for i, classe in enumerate(classes):
@@ -297,16 +347,19 @@ class NeuralNetwork():
             & to zeros for bias
         """ 
         # Intiailization of the Embedding Layer
-        bfr_W = (np.random.random(size=(self.embedding_size, layers[0])) - 0.5 ) /100
-        bfr_b = (np.random.random(size=(layers[0],1)) - 0.5) / 100
+        bfr_W = np.random.uniform((-(math.sqrt(6) / math.sqrt(self.embedding_size + layers[0]))), (math.sqrt(6) / math.sqrt(self.embedding_size + layers[0])), (self.embedding_size, layers[0]))
+        bfr_b = np.random.uniform((-(math.sqrt(6) / math.sqrt(layers[0]))), (math.sqrt(6) / math.sqrt(layers[0])), ( layers[0], 1))
         self.embedding = Embedding_Layer(bfr_W, bfr_b, self.window)    
 
         for i, activ in enumerate(activ):
             if i == 0: #Lookup Layer
-                bfr_W = (np.random.random(size= (layers[i]*(self.window*2+1), layers[i+1])) - 0.5 ) /100
+                bfr_W = np.random.uniform(((-(math.sqrt(6) / math.sqrt((layers[i]*(self.window*2+1)) + layers[i+1])))), (math.sqrt(6) / math.sqrt(layers[i]*(self.window*2+1)) + layers[i+1]), (layers[i]*(self.window*2+1), layers[i+1]))
             else:
-                bfr_W = (np.random.random(size=(layers[i], layers[i+1])) - 0.5 ) /100
-            bfr_b = (np.random.random(size=(layers[i+1],1))  - 0.5 ) /100
+                mini = -(math.sqrt(6) / (math.sqrt(layers[i] + layers[i+1])))
+                maxi = math.sqrt(6) / math.sqrt(layers[i] + layers[i+1])
+                bfr_W = np.random.uniform(mini, maxi, (layers[i], layers[i+1]))
+            bfr_b = np.random.uniform((-(math.sqrt(6) / math.sqrt(layers[i+1]))), (math.sqrt(6) / math.sqrt(layers[i+1])), ( layers[i+1], 1))
+
 
             if i == 0:
                 self.param.append(Lookup_Layer(bfr_W, bfr_b, self.vocabulary, self.embedding))
@@ -370,10 +423,11 @@ class NeuralNetwork():
 
     def update_params(self, layers_gradients, emb_gradients):
         # Update from output to lookup layer
+        learning_rate_modified = self.learning_rate * math.pow((1 + (self.learning_rate * self.T)), -1)
         for i in range(len(self.param)):
             Wgrad, bgrad = layers_gradients.pop()
-            self.param[i].W -= self.learning_rate * Wgrad
-            self.param[i].b -= self.learning_rate * bgrad.T
+            self.param[i].W -= learning_rate_modified * Wgrad
+            self.param[i].b -= learning_rate_modified * bgrad.T
 
             self.param[i].W = (self.param[i].W - self.param[i].W.min()) / (self.param[i].W.max() -self.param[i].W.min())
             self.param[i].b = (self.param[i].b - self.param[i].b.min()) / (self.param[i].b.max() -self.param[i].b.min())
@@ -382,9 +436,9 @@ class NeuralNetwork():
         for e in range(len(emb_gradients)-1, -1, -1):
             bgrad, Wgrad, igrad = emb_gradients.pop(e)
             
-            self.embedding.W -= self.learning_rate * Wgrad.T
-            self.embedding.b -= self.learning_rate * bgrad.T
-            self.param[0].table[self.embedding.inputs_names[e]] -=  self.learning_rate * igrad
+            self.embedding.W -= learning_rate_modified * Wgrad.T
+            self.embedding.b -= learning_rate_modified * bgrad.T
+            self.param[0].table[self.embedding.inputs_names[e]] -=  learning_rate_modified * igrad
 
             self.embedding.W = (self.embedding.W - self.embedding.W.min()) / (self.embedding.W.max() -self.embedding.W.min())
             self.embedding.b = (self.embedding.b - self.embedding.b.min()) / (self.embedding.b.max() -self.embedding.b.min())
@@ -395,6 +449,7 @@ class NeuralNetwork():
 
     def train(self, sentences, test_sentences=None, epochs=20, mini_batch=None):
         start_time = time()
+
         for e in range(1, epochs+1, 1):
             random.shuffle(sentences) # shuffle indexes of the training data
 
@@ -412,6 +467,7 @@ class NeuralNetwork():
                 for i in range(len(sentence)):
                     self.forward_propagation(sentence, i)
                     self.back_propagation(self.classe2one_hot[sentence[1][i]])
+                    self.T+=1
             ### Prints
             if e % 1 == 0:
                 print("Epoch : {}, Evaluation : {}".format(e, self.evaluate(test_sentences)))
