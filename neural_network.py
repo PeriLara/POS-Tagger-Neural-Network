@@ -73,13 +73,13 @@ class NeuralNetwork():
             bfr_W = np.random.uniform(mini, maxi, (layers[i+1], layers[i+2]))
             bfr_b = np.random.uniform((-(math.sqrt(6) / math.sqrt(layers[i+2]))),(math.sqrt(6) / math.sqrt(layers[i+2])), (layers[i+2], 1) )
             if activ[i] == SOFTMAX:
-                print(SOFTMAX, bfr_W.shape, bfr_b.shape)
                 self.param.append(l.Softmax_Layer(bfr_W, bfr_b))
             elif activ[i] == RELU:
-                print(RELU, bfr_W.shape, bfr_b.shape)
                 self.param.append(l.RelU_Layer(bfr_W, bfr_b))
             elif activ[i] == LIN:
                 self.param.append(l.Linear_Layer(bfr_W, bfr_b))
+            elif activ[i] == TANH:
+                self.param.append(l.Tanh_Layer(bfr_W, bfr_b))
             else: # default
                 self.param.append(l.Linear_Layer(bfr_W, bfr_b))
 
@@ -112,13 +112,15 @@ class NeuralNetwork():
         Wgrad, bgrad, backward = self.param[-1].backward_function(y, self.param[-2])
         assert Wgrad.shape == self.param[-1].W.shape
         assert bgrad.shape == self.param[-1].b.T.shape
-        gradients = [(Wgrad, bgrad)]
+        gradients = [(Wgrad, bgrad, backward)]
 
 
         # Backprop for hiddenlayers + lookuplayer
-        for i in reversed(range(len(self.param) - 1)):
+        for i in reversed(range(len(self.param) - 2)):
             param = self.param[i]
+            print(param)
             Wgrad, bgrad, backward = param.backward_function(backward) # avant i-1
+            #print(param, Wgrad.shape, bgrad.shape, backward.shape)
             assert bgrad.shape == param.b.T.shape
             assert Wgrad.shape == param.W.shape
             gradients.append((Wgrad, bgrad)) 

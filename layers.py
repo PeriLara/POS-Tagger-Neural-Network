@@ -43,15 +43,19 @@ class Layer(ABC): #abstract
         return f"Layer : Weights = {self.W}"
     
     def forward_function(self, x):
-        print(x.shape, self.b.shape)
         self.combi_lin = np.add(np.matmul(x, self.W), self.b.T)
         self.res_forward = self.non_linearity()
+        assert self.combi_lin.shape == self.res_forward.shape
         return self.res_forward
 
     def backward_function(self, backward):
+        print("LINEAR BACKWARD", backward.shape)
         bgrad = self.backprop(backward)
+        print(bgrad.shape)
         Wgrad = self.res_forward.T.dot(bgrad)
+        print(Wgrad.shape)
         backward = backward.dot(self.W.T) 
+        print(backward.shape)
         return Wgrad, bgrad, backward
 
 
@@ -84,22 +88,17 @@ class Softmax_Layer(Layer):
         self.res_forward = None #result of the forward activation
         self.combi_lin = None
 
-    def __repr__(self):
-        return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
-
     def __str__(self):
-        return "Softma"
-        return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+        return "Softmax"
+        #return f"Softmax Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
     def non_linearity(self):
-        new_x = self.combi_lin - np.max(self.combi_lin)
-        exp = np.exp(new_x)
+        exp = np.exp(self.combi_lin - np.max(self.combi_lin))
         return exp / exp.sum()
 
-    def backward_function(self, y, hiddenL): 
-        new_x = self.combi_lin - np.max(self.combi_lin)
-        exp = np.exp(new_x)
-        bgrad = (exp/ exp.sum()) - y 
+    def backward_function(self, y, hiddenL):
+        assert y.shape == self.res_forward.shape
+        bgrad = (self.res_forward) - y 
         Wgrad = hiddenL.res_forward.T.dot(bgrad) #slope
         backward = bgrad.dot(self.W.T) 
         return Wgrad, bgrad, backward
@@ -143,8 +142,8 @@ class RelU_Layer(Layer):
         return self.combi_lin * (self.combi_lin > 0.0)
     
     def backprop(self, backward):
-        relu_diag = np.diag((1.0 * (self.combi_lin > 0.0))[0])
-        return backward.dot(relu_diag)
+        relu = 1.0 * (self.combi_lin > 0.0)
+        return backward.dot(relu)
 
 
 class Tanh_Layer(Layer):
@@ -153,18 +152,17 @@ class Tanh_Layer(Layer):
         Layer.__init__(self, W, b)
         self.res_forward = None #result of the forward activation
         self.combi_lin = None
-
-    def __repr__(self):
-        return f"Tanh Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
     def __str__(self):
-        return f"Tanh Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
+        return "Tanh"
+        #return f"Tanh Layer : Weights = {self.W} \n biais = {self.b} \n activation = {self.res_forward}"
     
     def non_linearity(self):
         return (2.0 / 1.0 + np.exp(-2.0 * self.combi_lin) ) * -1.0
     
-    def backprop(self, backward): 
-        return backward.dot(1.0 - (self.combi_lin ** 2.0))
+    def backprop(self, backward):
+        print("backprop tanh",self.combi_lin.shape)
+        return backward.dot(1.0 - (self.combi_lin.T ** 2.0))
 
 
 class Embedding_Layer(Layer):

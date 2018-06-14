@@ -53,5 +53,5 @@ if __name__ == "__main__":
     # Creating test data 
     test_sentences, test_vocabulary = rc.read_conllu(testfile, window, train_vocabulary)
 
-    NN = NeuralNetwork([12,2,8,len(classes)],[TANH, SOFTMAX], train_vocabulary, window, classes)  
+    NN = NeuralNetwork([12,15,20,len(classes)],[TANH, SOFTMAX], train_vocabulary, window, classes)  
     NN.train(train_sentences, test_sentences=test_sentences, mini_batch=args.mini_batch_size)
