@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Réseau de neurones POS Tagger
+# code : Lara Perinetti
 
 import numpy as np
 import math

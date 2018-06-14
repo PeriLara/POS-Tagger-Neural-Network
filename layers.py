@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Réseau de neurones POS Tagger
+# code : Lara Perinetti
+
 from abc import ABC
 import numpy as np
 from collections import defaultdict
@@ -26,6 +32,7 @@ LIN = "linear"
 
 class Layer(ABC): #abstract
     def __init__(self, W, b):
+        assert W.shape[1] == b.shape[0]
         self.W = W
         self.b = b
 
@@ -36,6 +43,7 @@ class Layer(ABC): #abstract
         return f"Layer : Weights = {self.W}"
     
     def forward_function(self, x):
+        print(x.shape, self.b.shape)
         self.combi_lin = np.add(np.matmul(x, self.W), self.b.T)
         self.res_forward = self.non_linearity()
         return self.res_forward
